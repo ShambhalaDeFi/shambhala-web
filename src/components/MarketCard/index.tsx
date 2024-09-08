@@ -155,6 +155,7 @@ const MarketCard: React.FC<MarketCardProps> = ({
       const amount =
         BigInt(inputAmount) * BigInt(Math.pow(10, Number(USDT_ERC20.decimals)));
       if (amount > balance) {
+        console.log(amount, balance);
         console.warn("Insufficient balance");
         //$toast('Insufficient balance')
         setBusy(false);
