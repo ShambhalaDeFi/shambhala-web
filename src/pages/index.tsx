@@ -1,3 +1,5 @@
+/* eslint-disable react-hooks/exhaustive-deps */
+/* eslint-disable react-hooks/rules-of-hooks */
 import type { NextPage } from "next";
 import Head from "next/head";
 import { Header } from "@/components/Header";
@@ -6,10 +8,22 @@ import Earn from "@/components/Earn";
 import { Footer } from "@/components/Footer";
 import CardSection from "@/Section/CardSection";
 import { useTranslation } from "react-i18next";
+import { getProductListApi } from '@/http/api';
+import { useEffect } from "react";
+import { useRouter } from 'next/router';
 
 const Home: NextPage = () => {
+  const router = useRouter();
+  const { inviteCode } = router.query;
+    useEffect(()=>{
+      if(inviteCode){
+        localStorage.setItem('inviteCode', inviteCode)
+      }else{
+        localStorage.removeItem('inviteCode')
+      }
+      getProductListApi()
+    })
   const { t } = useTranslation("common");
-
   return (
     <div>
       <Head>

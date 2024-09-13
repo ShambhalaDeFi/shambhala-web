@@ -15,8 +15,10 @@ import Image from "next/image";
 import Referral from "@/components/Referral";
 import { useTranslation } from "react-i18next";
 import Router from "next/router";
-import api from "@/http/axios";
-
+import { fetchPointsRecordTableData, fetchPointsReferralTableData } from '@/http/api';
+import useStore from '@/store/index';
+import { useApolloClient, gql } from '@apollo/client';
+import { inviteUrl } from '@/configs/baseUrl'
 type PointsMarketSectionProps = {
   type: "pointsMarket" | "referral" | "myRewards" | "rewardCenter";
 };
@@ -25,6 +27,8 @@ const PointsMarketSection: FC<PointsMarketSectionProps> = ({ type }) => {
   const [activeTab, setActiveTab] = useState<"pointsRecord" | "referralDetail">(
     "pointsRecord"
   );
+  const { userInfo,updateIntegralInfo,integralInfo } = useStore();
+  const [shareUrl,setShareUrl] = useState('')
   const { t } = useTranslation("common");
   const goPage = (to: string) => {
     Router.push(to);
@@ -42,18 +46,67 @@ const PointsMarketSection: FC<PointsMarketSectionProps> = ({ type }) => {
         return t("reward-center");
     }
   };
+
   const [activeData, setActiveData] = useState([]);
-  const getList = async () => {
-    const response = await api.get("/api/list");
-    console.log("kkkk", response.data);
-    setActiveData(response.data);
-    console.log("activeCard", activeData);
+  const changePointTab = (type:string)=>{
+    console.log(type)
+    if(type == 'pointsRecord'){
+      loadPointData({
+        variables: integralInfo.id
+      });
+    }
+    if(type == 'referralDetail'){
+      // loadReferralData()
+    }
+  }
+
+  const client = useApolloClient();
+  const [pointsRecordDataSource, setPointsRecordDataSource] = useState([]); // My points->Points Record
+  const loadPointData = async (parms:any) => {
+    // userId: ${parms.variables},
+    await client.query({
+      query: gql`
+      query {
+      pointLogs(input: {
+        userId: ${parms.variables},
+        pageSize: 100,
+        pageNum: 0
+      }) {
+        id
+        userId
+        pointChange
+        type
+        createdAt
+        updatedAt
+        deletedAt
+      }
+    }
+      `
+    }).then(res=>{
+      console.log('--------------',res)
+      setPointsRecordDataSource(res?.data?.pointLogs || [])
+      setreferralDetailDataSource(res?.data?.pointLogs || [])
+      setMarketDataSource(res?.data?.pointLogs || [])
+    })
+    
   };
+  const [referralDetailDataSource, setreferralDetailDataSource] = useState([]); // My points->Referral Detail
+  const [marketDataSource, setMarketDataSource] = useState([]); // My points->Referral Detail
+  // const loadReferralData = async () => {
+  //   const data = await fetchPointsReferralTableData();
+  //   setreferralDetailDataSource(data)
+  // };
   useEffect(() => {
-    getList();
+    setShareUrl(inviteUrl+'?inviteCode=' + integralInfo.inviteCode)
+    if((type == 'myRewards' || type == 'pointsMarket') && integralInfo.id){
+      loadPointData({
+        variables: integralInfo.id
+      });
+    }
   }, []);
+  
   return (
-    <section className="bg-bg-primary w-full h-screen py-[135px] px-[105px]">
+    <section className="bg-bg-primary w-full min-h-screen py-[135px] px-[105px]">
       <h1 className="text-[34px] font-800 text-primary mb-[85px]">{title()}</h1>
       {/* Hot Activity */}
       {type === "pointsMarket" && (
@@ -92,7 +145,7 @@ const PointsMarketSection: FC<PointsMarketSectionProps> = ({ type }) => {
             {t("my-points")}
           </h1>
           <div className="flex items-center justify-start gap-[5px]">
-            <span className="text-primary font-600 text-[60px]">50</span>
+            <span className="text-primary font-600 text-[60px]">{integralInfo?.points || 0}</span>
             <Image src="/points.svg" width={25} height={25} alt="points" />
           </div>
         </>
@@ -166,7 +219,7 @@ const PointsMarketSection: FC<PointsMarketSectionProps> = ({ type }) => {
                 className="button-hover"
               />{" "}
             </div>
-            <Referral link="xxx.io/referral?ref=CODE" />
+            <Referral link={shareUrl} />
           </div>
         </div>
       )}
@@ -184,6 +237,7 @@ const PointsMarketSection: FC<PointsMarketSectionProps> = ({ type }) => {
                 }`}
                 onClick={() => {
                   setActiveTab(tab as "pointsRecord" | "referralDetail");
+                  changePointTab(tab as "pointsRecord" | "referralDetail")
                 }}
               >
                 {tab === "pointsRecord"

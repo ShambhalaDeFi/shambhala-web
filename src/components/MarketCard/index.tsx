@@ -1,46 +1,62 @@
 import React, { useState, useEffect, useRef } from "react";
 import Image from "next/image";
+import Loading from "@/components/Loading";
 import InputCard from "../InputCard";
-
+import moment from 'moment';
+import { toast } from 'react-toastify'
+import { matchImg } from "@/commons/utils"
 import { USDTVAULT_ERC20, USDT_ERC20 } from "@/commons/config";
 import {
   readContract,
   writeContract,
   getTransactionReceipt,
   getAccount,
+  getChainId
 } from "@wagmi/core";
-import { config } from "@/wagmi";
+// import { config } from "@/wagmi";
+import {config} from "@/providers/AppKitProvider"
+import { useApolloClient, gql } from '@apollo/client';
+import useStore from '@/store/index';
 
 interface MarketCardProps {
+  abbrId: string;
   logo: string;
   subLogo: string;
   coinName: string;
-  apy: string;
+  apy: number;
+  cycle: number|string;
+  maturity: string;
   tvl: string;
   network: string;
-  date?: string;
   rate?: number;
+  pid: number;
+  contractAddress: string;
 }
 
 const MarketCard: React.FC<MarketCardProps> = ({
+  abbrId,
   logo,
   subLogo,
   coinName,
   apy,
+  cycle,
+  maturity,
   tvl,
   network,
-  date,
   rate,
+  pid,
+  contractAddress
 }) => {
   const [state, setState] = useState(0);
   const [busy, setBusy] = useState(false);
-  const pid = 5;
-  const inputAmount = 100;
+  const [inputAmount, setInputAmount] = useState(0);
+  const { userInfo } = useStore();
+  const client = useApolloClient();
 
   function getPoolInfo() {
     return readContract(config, {
       abi: USDTVAULT_ERC20.abi,
-      address: USDTVAULT_ERC20.address,
+      address: contractAddress,
       functionName: "pools",
       args: [pid],
     });
@@ -49,7 +65,7 @@ const MarketCard: React.FC<MarketCardProps> = ({
   function getPoolState() {
     return readContract(config, {
       abi: USDTVAULT_ERC20.abi,
-      address: USDTVAULT_ERC20.address,
+      address: contractAddress,
       functionName: "poolState",
       args: [pid],
     });
@@ -57,7 +73,7 @@ const MarketCard: React.FC<MarketCardProps> = ({
 
   function queryBalance() {
     const account = getAccount(config);
-    console.log("account", account);
+    // console.log("account", account);
     return readContract(config, {
       abi: USDT_ERC20.abi,
       address: USDT_ERC20.address,
@@ -72,7 +88,7 @@ const MarketCard: React.FC<MarketCardProps> = ({
       abi: USDT_ERC20.abi,
       address: USDT_ERC20.address,
       functionName: "allowance",
-      args: [account.address, USDTVAULT_ERC20.address],
+      args: [account.address, contractAddress],
     });
   }
 
@@ -80,7 +96,7 @@ const MarketCard: React.FC<MarketCardProps> = ({
     const account = getAccount(config);
     return writeContract(config, {
       abi: USDTVAULT_ERC20.abi,
-      address: USDTVAULT_ERC20.address,
+      address: contractAddress,
       functionName: "invest",
       args: [pid, amount],
       account: account.address,
@@ -93,7 +109,7 @@ const MarketCard: React.FC<MarketCardProps> = ({
       abi: USDT_ERC20.abi,
       address: USDT_ERC20.address,
       functionName: "approve",
-      args: [USDTVAULT_ERC20.address, amount],
+      args: [contractAddress, amount],
       account: account.address,
     });
   }
@@ -102,7 +118,7 @@ const MarketCard: React.FC<MarketCardProps> = ({
     while (retry > 0) {
       try {
         const res = await getTransactionReceipt(config, {
-          hash,
+          hash
         });
         console.log("getTransactionReceipt", res);
         if (res) {
@@ -110,7 +126,7 @@ const MarketCard: React.FC<MarketCardProps> = ({
         }
         retry--;
       } catch (e) {
-        console.log(e);
+        console.error(e, config);
         await new Promise((resolve, reject) => {
           setTimeout(() => {
             resolve();
@@ -121,15 +137,15 @@ const MarketCard: React.FC<MarketCardProps> = ({
   }
 
   async function handleInvest() {
-    console.log("handle invest");
-    const account = await getAccount(config);
-    if (!account) {
-      console.warn("Please connect wallet first");
-      //toast connect wallet
-      //todo
+    if (busy) {
       return;
     }
-    if (busy) {
+    console.log("handle invest");
+    const account = await getAccount(config);
+    // console.log('account', account);
+    if (!account.address) {
+      console.warn("Please connect wallet first");
+      toast.error('Please connect wallet first!')
       return;
     }
     setBusy(true);
@@ -139,25 +155,23 @@ const MarketCard: React.FC<MarketCardProps> = ({
       if (poolState > 1) {
         console.log("Product has been ended");
         //toast todo
+        toast.error("Product has been ended")
+        return;
+      }
+      if (inputAmount <= 0) {
+        console.warn("Asset must bigger than zero");
+        toast.error("Asset must bigger than zero")
+        setBusy(false);
         return;
       }
       const balance = await queryBalance();
       console.log("balance", balance);
-      if (inputAmount <= 0) {
-        console.warn("Asset must bigger than zero");
-        // uni.showToast({
-        // 	title: 'Asset must bigger than zero',
-        // 	icon: 'none'
-        // })
-        setBusy(false);
-        return;
-      }
       const amount =
         BigInt(inputAmount) * BigInt(Math.pow(10, Number(USDT_ERC20.decimals)));
       if (amount > balance) {
-        console.log(amount, balance);
         console.warn("Insufficient balance");
         //$toast('Insufficient balance')
+        toast.error("Insufficient balance")
         setBusy(false);
         return;
       }
@@ -166,15 +180,20 @@ const MarketCard: React.FC<MarketCardProps> = ({
       if (allowance < amount) {
         setState(1);
         var hash = await approving(amount);
+        console.log('approving resolved.hash is ', hash)
         if (await success(hash)) {
           setState(2);
           hash = await investing(amount);
+          console.log('investing resolved.hash is ', hash)
           if (await success(hash)) {
             console.log("Invest succeed");
-            //toast success todo
+            toast.success("Invest succeed")
+            purchaseDefi({
+              signedTx: hash
+            })
           } else {
             console.warn("Invest failed");
-            //toast failed todo
+            toast.error("Invest failed")
           }
           setState(0);
         }
@@ -183,20 +202,83 @@ const MarketCard: React.FC<MarketCardProps> = ({
         const hash = await investing(amount);
         if (await success(hash)) {
           console.log("Invest succeed");
-          //toast success todo
+          toast.success("Invest succeed")
+          purchaseDefi({
+            signedTx: hash
+          })
         } else {
           console.warn("Invest failed");
-          //toast failed todo
+          toast.error("Invest failed")
         }
       }
     } catch (e) {
       console.error(e);
-      //toast todo
+      toast.error(e.message)
     } finally {
       setBusy(false);
       setState(0);
     }
   }
+
+  const getUserInfo = (address) => {
+    return client.query({
+      query: gql`
+      query {
+        getUser(input: { 
+          address: "${address}" 
+        }) {
+          user {
+            id
+            address
+            hashKey
+            points
+            inviteCode
+            createdAt
+            updatedAt
+            deletedAt
+          }
+        }
+      }
+      `
+    })
+  }
+
+  const purchaseDefi = async (parms: any) => {
+    try {
+      const account = getAccount(config)
+      const userRes = await getUserInfo(account.address)
+      console.log('userInfo', userRes)
+      const chainId = getChainId(config)
+      await client.mutate({
+        mutation: gql`
+          mutation {
+            purchaseDefi(input: { 
+              id: "${abbrId || ''}"
+              userId: "${userRes.data.getUser.user.id || ''}"
+              signedTx: "${parms.signedTx}"
+              userAddr: "${account.address}"
+              chainCode: "${chainId}"
+              amount: "${inputAmount}"
+            }) {
+              success
+              id
+              amount
+            }
+        }
+        `
+      })
+      console.log('purchaseDefi success')
+    } catch (error) {
+      console.error(error)
+    }
+  };
+
+  // getPoolInfo().then(res => {
+  //   console.log('pool info', res)
+  // }).catch(err => {
+  //   console.error(err)
+  // })
+
   return (
     <div className="w-[500px] h-[473px]">
       <div className="w-full h-[90px] px-4 flex justify-between items-center mb-[5px] bg-market-card-bg rounded-card shadow-card text-primary">
@@ -204,7 +286,7 @@ const MarketCard: React.FC<MarketCardProps> = ({
         <div className="flex items-center">
           <div className="relative mr-2">
             <Image
-              src={logo}
+              src={matchImg(logo)}
               alt={coinName}
               width={40}
               height={40}
@@ -241,20 +323,21 @@ const MarketCard: React.FC<MarketCardProps> = ({
             <Image src={"/eth.svg"} width={16} height={16} alt="eth" />
             <p className="text-primary text-desc font-500">{network}</p>
           </div>
-          <p className="text-desc text-secondary">Date: {date}</p>
+          <p className="text-desc text-secondary">Date: {moment(maturity).format('ll')}</p>
         </div>
       </div>
       <InputCard
-        logo={logo}
+        logo={matchImg(logo)}
         coinName={coinName}
         rate={rate || 1}
         network={network}
+        apy={apy}
+        cycle={cycle}
+        maturity={maturity}
+        onChange={(value) => setInputAmount(value)}
       />
-      <div
-        onClick={handleInvest}
-        className="w-full h-[60px] flex items-center justify-center bg-primary text-thirdary text-[16px] font-600 rounded-[20px] button-hover"
-      >
-        Invest
+      <div onClick={handleInvest} className="w-full h-[60px] flex items-center justify-center bg-primary text-thirdary text-[16px] font-600 rounded-[20px] button-hover">
+        {state == 0 ? 'Invest' : state == 1 ? (<Loading text='Approving' type="asset" />) : (<Loading text='Investing' type="asset" />)}
       </div>
     </div>
   );

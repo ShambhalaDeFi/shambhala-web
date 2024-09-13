@@ -8,6 +8,7 @@ import WalletButton from "@/components/WalletButton";
 import { useTranslation } from "react-i18next";
 import { changeLanguage } from "i18next";
 import Link from "next/link";
+import useStore from '@/store/index';
 interface HeaderProps {
   logo?: boolean;
   switchTab?: boolean;
@@ -27,7 +28,11 @@ export const Header: FC<HeaderProps> = ({
   );
   const menuRef = useRef<HTMLDivElement>(null);
   const { t } = useTranslation("common");
-
+  const { isLogin } = useStore();
+  const [isShow, setIsShow] = useState(false);
+  useEffect(() => {
+    setIsShow(isLogin)
+  },[isLogin])
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
@@ -68,7 +73,7 @@ export const Header: FC<HeaderProps> = ({
           <Logo size="large" />
         </Link>
       </div>
-      {switchTab && <SwitchTab type={tabType} />}
+      {isShow && <SwitchTab type={tabType} />}
       <div className="relative flex items-center my-[9px]" ref={menuRef}>
         <WalletButton />
         <Image
@@ -113,7 +118,7 @@ export const Header: FC<HeaderProps> = ({
                     toggleMenu();
                   }}
                 >
-                  English
+                  {t("language-en")}
                 </li>
                 <li
                   className="px-4 py-2 hover:bg-gray-200 cursor-pointer"
@@ -122,7 +127,7 @@ export const Header: FC<HeaderProps> = ({
                     toggleMenu();
                   }}
                 >
-                  日本語
+                  {t("language-jp")}
                 </li>
 
                 <li
@@ -132,7 +137,7 @@ export const Header: FC<HeaderProps> = ({
                     toggleMenu();
                   }}
                 >
-                  中文
+                  {t('language-cn')}
                 </li>
               </ul>
             ) : (

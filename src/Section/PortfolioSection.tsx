@@ -1,7 +1,6 @@
 import React, { FC, useState } from "react";
 import Image from "next/image";
-import { useRouter } from "next/router";
-
+import Router, { useRouter } from "next/router";
 import Table from "@/components/Table";
 import { dataSource, switchColumns } from "@/configs/portfolio";
 import { Column, RowObject } from "@/components/Table/types";
@@ -42,7 +41,7 @@ const PortfolioSection: FC<PortfolioSectionProps> = ({ type }) => {
   const handleUpdate = () => {};
 
   return (
-    <section className="bg-bg-primary w-full h-screen py-[135px] px-[105px]">
+    <section className="bg-bg-primary w-full min-h-screen py-[135px] px-[105px]">
       {(type === "defi" || type === "transactions") && (
         <>
           <h1 className="text-lg font-800 text-primary mb-[85px]">
@@ -95,6 +94,7 @@ const PortfolioSection: FC<PortfolioSectionProps> = ({ type }) => {
           columns={columns as Column<RowObject>[]}
           dataSource={dataSource}
           type={activeTab === "transactions" ? "card" : "normal"}
+          onDetail={data => Router.push('/detail', {})}
         />
       </div>
     </section>

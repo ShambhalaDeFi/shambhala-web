@@ -1,65 +1,88 @@
-import { ConnectButton } from "@rainbow-me/rainbowkit";
+//import { ConnectButton } from "@rainbow-me/rainbowkit";
+import { config } from '../../providers/AppKitProvider'
 import { useAccount, useDisconnect } from "wagmi";
 import React, { useState, useEffect, useRef } from "react";
 import Image from "next/image";
 import { FaCopy } from "react-icons/fa";
 import { CopyToClipboard } from "react-copy-to-clipboard";
-import { signTypedData, watchConnections } from "@wagmi/core";
-import { config } from "@/wagmi";
+import { watchConnections, signMessage } from "@wagmi/core";
+import { useWeb3Modal } from '@web3modal/wagmi/react'
+//import { config } from "@/wagmi";
+import {
+  getAccount,
+  disconnect
+} from "@wagmi/core";
+import { useRouter } from "next/router"; // 用于页面跳转
+import { login, getSignContent } from '@/http/user'
+import { toast } from 'react-toastify'
+import useStore from '@/store/index';
+import Router from 'next/router';
+import { useTranslation } from "react-i18next";
 
-function sign() {
-  return signTypedData(config, {
-    types: {
-      Person: [
-        { name: "name", type: "string" },
-        { name: "wallet", type: "address" },
-      ],
-      Mail: [
-        { name: "from", type: "Person" },
-        { name: "to", type: "Person" },
-        { name: "contents", type: "string" },
-      ],
-    },
-    primaryType: "Mail",
-    message: {
-      from: {
-        name: "Cow",
-        wallet: "0xCD2a3d9F938E13CD947Ec05AbC7FE734Df8DD826",
-      },
-      to: {
-        name: "Bob",
-        wallet: "0xbBbBBBBbbBBBbbbBbbBbbbbBBbBbbbbBbBbbBBbB",
-      },
-      contents: "Hello, Bob!",
-    },
-  });
+var busy = false
+
+function sign(message = '') {
+  return signMessage(config, {
+    message
+  })
 }
 
-watchConnections(config, {
-  onChange(data) {
-    console.log("Connections changed!", data);
-    const isLogin = true;
-    if (!isLogin && data.length) {
-      sign()
-        .then((res) => {
-          console.log("sign result", res);
-          //do login
-          //todo
-        })
-        .catch((err) => {
-          console.error("Sign denied", err);
-        });
-    }
-  },
-});
-
 const WalletButton: React.FC = () => {
+  const { t } = useTranslation("common");
+  const { userInfo, updateUserInfo, isLogin, updateIsLogin } = useStore();
   const { address, isConnected } = useAccount();
   const { disconnect } = useDisconnect();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isCopied, setIsCopied] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
+  const router = useRouter(); // 用于跳转
+  const { open, close } = useWeb3Modal()
 
+  function openConnectModal() {
+    open({view: 'Connect'})
+  }
+  useEffect(() => {
+    const unwatch = watchConnections(config, {
+      async onChange(data) {
+        console.log("Connections changed!", data);
+        const isLogin = !!localStorage.getItem('token');
+        if (isLogin && !data.length) {
+          localStorage.removeItem('token')
+          updateUserInfo('')
+          updateIsLogin(false)
+          return
+        }
+        if (!isLogin && data.length && !busy) {
+          try {
+            busy = true
+            const content = await getSignContent()
+            console.log('getSignContent', content)
+            const signature = await sign(content.text)
+            console.log('sign result', signature)
+            const res = await login({
+              walletAddr: getAccount(config).address,
+              text: content.text,
+              signature
+            })
+            console.log('login success', res)
+            localStorage.setItem('token', res.token)
+            updateUserInfo({ token: res.token, address: getAccount(config).address })
+            updateIsLogin(true)
+            // toast.success('login succeed')
+          } catch (err) {
+            console.log('login failed', err)
+            toast.error(err.message)
+            disconnect(config); // 断开连接
+            localStorage.removeItem('token')
+            updateUserInfo('')
+            updateIsLogin(false)
+          } finally {
+            busy = false
+          }
+        }
+      },
+    });
+  }, [])
   // 点击外部关闭菜单
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -78,6 +101,10 @@ const WalletButton: React.FC = () => {
   const handleDisconnect = () => {
     disconnect(); // 断开连接
     setIsMenuOpen(false); // 关闭菜单
+    localStorage.removeItem('token')
+    updateUserInfo('')
+    Router.push('/');
+    updateIsLogin(false)
   };
 
   const toggleMenu = () => {
@@ -90,7 +117,9 @@ const WalletButton: React.FC = () => {
     setIsCopied(true); // 设置已复制状态
     setTimeout(() => setIsCopied(false), 2000); // 2秒后重置已复制状态
   };
-
+  const handlePort = () => {
+    router.push('/portfolio')
+  }
   return (
     <div className="relative flex items-center space-x-2">
       {isConnected ? (
@@ -115,7 +144,7 @@ const WalletButton: React.FC = () => {
             <div className="absolute top-full right-0 mt-2 bg-thirdary text-primary rounded-lg shadow-lg z-10">
               <ul className="text-sm">
                 <CopyToClipboard text={address || ""} onCopy={handleCopy}>
-                  <li className="px-4 py-2 hover:bg-gray-200 cursor-pointer">
+                  <li className="px-4 py-2 hover:bg-gray-200 cursor-pointer rounded-tl-xl rounded-tr-xl">
                     <p className="flex items-center justify-center gap-2">
                       <Image
                         src="/user-icon.svg"
@@ -135,29 +164,41 @@ const WalletButton: React.FC = () => {
                   </li>
                 </CopyToClipboard>
                 {isCopied && (
-                  <li className="text-center text-green-500">地址已复制</li>
+                  <li className="text-center text-green-500">{t('copied')}</li>
                 )}
                 <li
                   className="px-4 py-2 hover:bg-gray-200 cursor-pointer"
+                  onClick={() => handlePort()}
+                >
+                  {t('portfolio')}
+                </li>
+                <li
+                  className="px-4 py-2 hover:bg-gray-200 cursor-pointer rounded-bl-xl rounded-br-xl"
                   onClick={handleDisconnect}
                 >
-                  退出
+                  {t("login-out")}
                 </li>
               </ul>
             </div>
           )}
         </div>
       ) : (
-        <ConnectButton.Custom>
-          {({ openConnectModal }) => (
-            <div
-              onClick={openConnectModal}
-              className="bg-white text-black px-4 py-2 rounded-full mr-[20px]"
-            >
-              Connect Wallet
-            </div>
-          )}
-        </ConnectButton.Custom>
+        // <ConnectButton.Custom>
+        //   {({ openConnectModal }) => (
+        //     <div
+        //       onClick={openConnectModal}
+        //       className="bg-white text-black px-4 py-2 rounded-full mr-[20px]"
+        //     >
+        //       Connect Wallet
+        //     </div>
+        //   )}
+        // </ConnectButton.Custom>
+        <div
+          onClick={openConnectModal}
+          className="bg-white text-black px-4 py-2 rounded-full mr-[20px]"
+        >
+          Connect Wallet
+        </div>
       )}
     </div>
   );
