@@ -28,26 +28,6 @@ export async function fetchPointsReferralTableData() {
   }
 }
 
-// My Points->PReferral Detail页面
-export async function getProductListApi() {
-  try {
-    axios.get('https://apitest.upsurge.finance/poolInfo/v1/avaliable')
-    .then(response=>{
-      if(response.data.code == 200){
-        console.log('xxxxxxxxxxxxxxx',response.data.data)
-        // response.data.data.forEach(item:(any: any)=>{
-        //   console.log(item)
-        // })
-      }
-    })
-    .catch(error=>console.error(error))
-  } catch (error) {
-    console.error("Error fetching table data:", error);
-    return [];
-  }
-}
-
-
 export const refetchQuery = (parms?: any) => {
   const GET_USERS = gql`
   query {
