@@ -23,7 +23,7 @@ const MobileMenu: FC<MobileMenuProps> = ({ onClose }) => {
     };
 
     const menuItems = [
-        { label: t("market"), path: "/market", icon: "/referral.svg" },
+        // { label: t("market"), path: "/market", icon: "/referral.svg" },
         { label: t("referral"), path: "/referral", icon: "/referral.svg" },
         { label: t("reward-center"), path: "/reward", icon: "/reward.svg" },
         { label: t("my-points"), path: "/points", icon: "/points.svg" },
@@ -65,7 +65,7 @@ const MobileMenu: FC<MobileMenuProps> = ({ onClose }) => {
             <div
                 className=" py-2 cursor-pointer"
                 onClick={() => {
-                    router.push("/market");
+                    router.push("/discover");
                     onClose();
                 }}
             >
