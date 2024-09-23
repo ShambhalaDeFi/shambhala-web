@@ -61,7 +61,7 @@ const MarketCard: React.FC<MarketCardProps> = ({
   const [busy, setBusy] = useState(false);
   const [myInvestings, setMyInvestings] = useState<InvestmentItem[]>([]);
   const { address: accountAddress, isConnected } = useAccount();
-  const { purchaseDefi, loading } = usePurchaseDefi();
+  const { purchaseDefi } = usePurchaseDefi();
   const formattedApy = useMemo(() => (Number(apy) / 1000000) * 100, [apy]);
   const { data: blockNumber } = useBlockNumber();
   const { userInfo } = useStore();
@@ -121,7 +121,7 @@ const MarketCard: React.FC<MarketCardProps> = ({
   });
 
   const handleInvest = useCallback(async () => {
-    if (busy || loading) return;
+    if (busy ) return;
 
     if (!isConnected) {
       message.error("Please connect wallet first!");
@@ -223,7 +223,6 @@ const MarketCard: React.FC<MarketCardProps> = ({
     isConnected,
     isError,
     isSuccess,
-    loading,
     myInvestings,
     pid,
     purchaseDefi,

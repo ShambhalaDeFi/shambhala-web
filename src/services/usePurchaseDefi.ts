@@ -48,11 +48,11 @@ export const usePurchaseDefi = () => {
     // }
 
     try {
-      const userId = userData?.getUser?.user?.id || "";
+      // const userId = userData?.getUser?.user?.id || "";
       const response = await purchaseDefiMutation({
         variables: {
           id: params.id || "",
-          userId: userId,
+          // userId: userId,
           signedTx: params.signedTx,
           userAddr: accountAddress,
           chainCode: chain?.id || "",
