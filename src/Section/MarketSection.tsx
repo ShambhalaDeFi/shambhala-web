@@ -1,72 +1,59 @@
 import MarketCard from "@/components/MarketCard";
+import { mockProductList } from "@/mocks/mockProductList";
+import useStore from "@/store/useStore";
 import { useTranslation } from "react-i18next";
-import { generateRandomString } from "@/commons/utils"
-import useStore from '@/store/index';
+
 const MarketSection = () => {
-  const { productArray,updateProductArray } = useStore();
   const { t } = useTranslation("common");
 
+  const hardcodedProductList = [
+    {
+      abbrId: '1',
+      abbrLogo: '/path-to-usdt-logo.png',
+      abbrSubLogo: '/path-to-bsc-logo.png',
+      abbrTitle: 'USDT',
+      abbrApy: '3285000',
+      abbrCycle: 3,
+      maturity: '2023-12-31',
+      tvl: '7.67M',
+      network: 'bsc',
+      pid: 123,
+      contractAddress: '0x6e7E9700350467bc645fb2985D6b63972Eb9F9e1' as `0x${string}`,
+      fixedDuration: 0,
+      startBlock: 1000000,
+      depositLimit: '\$100,000',
+    },
+  ];
+
   return (
-    <section className="bg-bg-primary py-16">
-      <div className="max-w-7xl mx-auto px-4">
-        <h2 className="text-number text-center text-primary font-600 mb-[75px]">
-          {t("discover-yield-markets")}
-        </h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-8">
-        {productArray.map(item => (
-          <MarketCard
-            abbrId={item.id}
-            key={generateRandomString(10)}
-            logo={item.abbrLogo}
-            subLogo={item.abbrSubLogo}
-            coinName={item.abbrTitle}
-            apy={item.abbrApy}
-            cycle={item.abbrCycle}
-            maturity={item.maturity}
-            tvl={item.tvl}
-            network={item.network}
-            pid={item.pid}
-            contractAddress={item.contractAddress}
-            fixedDuration={item.fixedDuration}
-            startBlock={item.startBlock}
-          />
-        ))}
-          {/* <MarketCard
-            logo="/solana.png"
-            subLogo="/aave.png"
-            coinName="SOL"
-            apy={23.57}
-            cycle={10}
-            maturity="2024-09-15T07:58:00"
-            tvl="10.5M"
-            network="Ethereum"
-            pid={0}
-          />
-          <MarketCard
-            logo="/tether.png"
-            subLogo="/aave.png"
-            coinName="USDT"
-            apy={23.57}
-            cycle={15}
-            maturity="2024-09-20T07:58:00"
-            tvl="10.5M"
-            network="Ethereum"
-            pid={1}
-          />
-          <MarketCard
-            logo="/usdc.png"
-            subLogo="/aave.png"
-            coinName="USDC"
-            apy={23.57}
-            cycle={30}
-            maturity="2024-09-20T07:58:00"
-            tvl="10.5M"
-            network="Ethereum"
-            pid={2}
-          /> */}
+      <section className="bg-bg-primary py-16">
+        <div className="max-w-7xl mx-auto px-4">
+          <h2 className="text-number text-center text-primary font-600 mb-[75px]">
+            {t("discover-yield-markets")}
+          </h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-8">
+            {hardcodedProductList.map((item, index) => (
+                <MarketCard
+                    abbrId={item.abbrId}
+                    key={index + "market_card"}
+                    logo={item.abbrLogo}
+                    subLogo={item.abbrSubLogo}
+                    coinName={item.abbrTitle}
+                    apy={item.abbrApy}
+                    cycle={Number(item.abbrCycle)}
+                    maturity={item.maturity}
+                    tvl={item.tvl}
+                    network={item.network}
+                    pid={item.pid}
+                    contractAddress={item.contractAddress}
+                    fixedDuration={item.fixedDuration}
+                    startBlock={item.startBlock}
+                    depositLimit={item.depositLimit}
+                />
+            ))}
+          </div>
         </div>
-      </div>
-    </section>
+      </section>
   );
 };
 

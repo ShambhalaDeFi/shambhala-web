@@ -8,6 +8,7 @@ interface EarnProps {
 
 const Earn: FC<EarnProps> = ({ col }) => {
   const { t } = useTranslation("common");
+
   return (
     <section
       className={`h-[638px] bg-bg-primary text-primary flex items-center`}
@@ -18,13 +19,11 @@ const Earn: FC<EarnProps> = ({ col }) => {
         }`}
       >
         <div className={`w-1/2 ${col ? "mr-0 mt-6" : "mr-[72px]"}`}>
-          <h2 className="text-xl font-bold mb-4">{t('earn')}</h2>
-          <p className="text-desc mt-[21px]">
-           {t('home-instrc')}
-          </p>
+          <h2 className="text-xl font-bold mb-4">{t("earn")}</h2>
+          <p className="text-desc mt-[21px]">{t("home-instrc")}</p>
           <Link href="/discover">
             <div className="w-[200px] h-[42px] bg-primary text-thirdary rounded-full mt-[52px] flex items-center justify-center button-hover mx-auto">
-            {t('earn')}
+              {t("earn")}
             </div>
           </Link>
         </div>

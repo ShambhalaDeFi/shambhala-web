@@ -1,17 +1,20 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  sourceMap: true,
   reactStrictMode: true,
   i18n: {
     locales: ["en", "jp", "zh"],
     defaultLocale: "en",
+    localeDetection: false,
   },
-  eslint: {
-    ignoreDuringBuilds: true,
-  },
-  typescript: {
-    ignoreBuildErrors: true,
+  async rewrites() {
+    return [
+      {
+        source: '/',
+        destination: '/en',
+      },
+    ];
   },
 };
+
 
 export default nextConfig;

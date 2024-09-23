@@ -4,47 +4,27 @@ import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
 import PointsMarketSection from "@/Section/PointsMarketSection";
 import { useTranslation } from "react-i18next";
-import { useApolloClient, gql } from '@apollo/client';
-import useStore  from '@/store/index';
+import useStore from "@/store/useStore";
 import { useEffect } from "react";
+import { useGetUserInfoByAddress } from "@/services/useGetUserInfoByAddress";
+import Loading from "@/components/Loading";
 
 const Market: NextPage = () => {
   const { t } = useTranslation("common");
-  const client = useApolloClient();
-  const { userInfo,updateIntegralInfo } = useStore();
-  // 获取积分信息
-  const refetchQuery = async (parms:any) => {
-    await client.query({
-      query: gql`
-      query {
-        getUser(input: { 
-          address: "${parms.variables}" 
-        }) {
-          user {
-            id
-            address
-            hashKey
-            points
-            inviteCode
-            createdAt
-            updatedAt
-            deletedAt
-          }
-        }
-      }
-      `
-    }).then(res=>{
-      updateIntegralInfo(res.data.getUser.user)
-    }).catch(error => {
-      updateIntegralInfo({})
-    });
-  };
+  const { userInfo, updateIntegralInfo } = useStore();
+  const { data, loading, error } = useGetUserInfoByAddress(
+    userInfo?.address || ""
+  );
+
   useEffect(() => {
-    if(!userInfo.address)return
-    refetchQuery({
-      variables: userInfo.address
-    })
-  },[])
+    if (data && data.getUser?.user) {
+      updateIntegralInfo(data.getUser.user);
+    }
+  }, [data, updateIntegralInfo]);
+
+  if (loading) return <Loading text={"Points Loading"} />;
+  if (error) return <div>Error loading data</div>;
+
   return (
     <div>
       <Head>

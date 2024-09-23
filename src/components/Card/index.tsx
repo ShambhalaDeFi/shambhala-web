@@ -1,23 +1,42 @@
 import Image from "next/image";
 import React, { FC } from "react";
 import Link from "next/link";
-import { matchImg } from "@/commons/utils"
-interface CardProps {
+import { matchImg } from "@/utils/matchImg";
+
+export interface CardProps {
   abbrId: string;
   abbrLogo: string;
+
   abbrSubLogo: string;
   abbrTitle: string;
-  abbrApy: string|number;
+
+  abbrApy: string | number;
   abbrCycle: number;
   abbrVersion: string;
-  abbrExpireTime:string,
-  pid:number,
-  contractAddress:string,
-  fixedDuration:number,
-  depositLimit:string
+  abbrExpireTime: string;
+
+  pid: number;
+  contractAddress: `0x${string}`;
+  fixedDuration: number;
+  depositLimit: string;
 }
 
-const Card: FC<CardProps> = ({ abbrId, abbrLogo, abbrSubLogo, abbrTitle, abbrApy, abbrCycle, abbrVersion,abbrExpireTime,contractAddress,pid,fixedDuration,depositLimit }) => {
+const Card: FC<CardProps> = ({
+  abbrId,
+  abbrLogo,
+  abbrSubLogo,
+  abbrTitle,
+  abbrApy,
+  abbrCycle,
+  abbrVersion,
+  abbrExpireTime,
+  contractAddress,
+  pid,
+  fixedDuration,
+  depositLimit,
+}) => {
+  const formattedApy = (Number(abbrApy) / 1000000) * 100;
+
   return (
     <div className="bg-white text-black p-4 rounded-lg shadow-lg border border-gray-300 w-400">
       <div className="flex items-center justify-between mb-4">
@@ -32,7 +51,7 @@ const Card: FC<CardProps> = ({ abbrId, abbrLogo, abbrSubLogo, abbrTitle, abbrApy
               className="rounded-coin"
             />
             <Image
-              src={abbrSubLogo}
+              src={matchImg(abbrSubLogo)}
               alt={abbrTitle}
               width={20}
               height={20}
@@ -46,7 +65,7 @@ const Card: FC<CardProps> = ({ abbrId, abbrLogo, abbrSubLogo, abbrTitle, abbrApy
         </div>
 
         <div className="text-right flex flex-row items-center">
-          <span className="text-coinXl font-600">{((Number(abbrApy))/1000000)*100}</span>
+          <span className="text-coinXl font-600">{formattedApy}</span>
           <div className="flex flex-col items-center justify-start ml-[2px]">
             <span className="text-coinSm text-primary">%</span>
             <p className="text-coinSm text-primary">APY</p>
@@ -55,7 +74,24 @@ const Card: FC<CardProps> = ({ abbrId, abbrLogo, abbrSubLogo, abbrTitle, abbrApy
       </div>
 
       <div className="flex justify-center">
-        <Link href={{pathname:'/asset',query:{abbrId, abbrLogo,abbrTitle, abbrApy, abbrCycle, abbrVersion,abbrExpireTime,contractAddress,pid,fixedDuration,depositLimit}}}>
+        <Link
+          href={{
+            pathname: "/asset",
+            query: {
+              abbrId,
+              abbrLogo,
+              abbrTitle,
+              abbrApy,
+              abbrCycle,
+              abbrVersion,
+              abbrExpireTime,
+              contractAddress,
+              pid,
+              fixedDuration,
+              depositLimit,
+            },
+          }}
+        >
           <div className="w-200 h-41 mt-2 bg-button text-primary text-center px-6 py-2 rounded-button shadow-sm cursor-pointer button-hover">
             Invest
           </div>

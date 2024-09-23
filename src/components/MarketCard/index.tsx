@@ -1,46 +1,48 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import Image from "next/image";
 import Loading from "@/components/Loading";
-import InputCard from "../InputCard";
-import moment from 'moment';
-import { toast } from 'react-toastify'
-import { matchImg,handleShowDay } from "@/commons/utils"
-import { USDTVAULT_ERC20, USDT_ERC20 } from "@/commons/config";
+import InputCard from "@/components/InputCard";
+import moment from "moment";
+import useStore from "@/store/useStore";
+import { matchImg } from "@/utils/matchImg";
+import { ContractConfig } from "@/contract/config";
 import {
-  readContract,
-  writeContract,
-  getTransactionReceipt,
-  getAccount,
-  getChainId,
-  getBlockNumber
-} from "@wagmi/core";
-// import { config } from "@/wagmi";
-import {config} from "@/providers/AppKitProvider"
-import { useApolloClient, gql } from '@apollo/client';
-import useStore from '@/store/index';
-import {getContractMsg} from '@/commons/utils'
+  useReadContracts,
+  useWriteContract,
+  useWaitForTransactionReceipt,
+  useAccount,
+  useBlockNumber,
+} from "wagmi";
+import { getContractMsg } from "@/utils/contract";
+import { message } from "@/providers/MessageProvider";
+import { fetchInvestments, InvestmentItem } from "@/services/investService";
+import { usePurchaseDefi } from "@/services/usePurchaseDefi";
+import { handleShowDay } from "@/utils/handleShowDay";
+
+const { USDT_ERC20, USDT_VAULT_ERC20 } = ContractConfig;
+
 interface MarketCardProps {
   abbrId: string;
   logo: string;
   subLogo: string;
   coinName: string;
-  apy: number;
-  cycle: number|string;
-  maturity: string;
+  apy: number | string;
   tvl: string;
   network: string;
   rate?: number;
   pid: number;
-  contractAddress: string;
-  fixedDuration:number;
+  contractAddress: `0x${string}`;
+  fixedDuration: number;
   depositLimit: string;
-  startBlock:number
+  startBlock: number;
+  cycle: number;
+  maturity: string;
 }
 
 const MarketCard: React.FC<MarketCardProps> = ({
   abbrId,
   logo,
-  subLogo,
+  // subLogo,
   coinName,
   apy,
   cycle,
@@ -52,326 +54,262 @@ const MarketCard: React.FC<MarketCardProps> = ({
   contractAddress,
   depositLimit,
   fixedDuration,
-  startBlock
+  startBlock,
 }) => {
   const [state, setState] = useState(0);
-  const [busy, setBusy] = useState(false);
   const [inputAmount, setInputAmount] = useState(0);
+  const [busy, setBusy] = useState(false);
+  const [myInvestings, setMyInvestings] = useState<InvestmentItem[]>([]);
+  const { address: accountAddress, isConnected } = useAccount();
+  const { purchaseDefi, loading } = usePurchaseDefi();
+  const formattedApy = useMemo(() => (Number(apy) / 1000000) * 100, [apy]);
+  const { data: blockNumber } = useBlockNumber();
   const { userInfo } = useStore();
-  const client = useApolloClient();
-  const [myInvestings, setMyInvestings] = useState([])
 
-  function getMyInvestings() {
-    const account = getAccount(config)
-    if (!account || !account.address) {
-      return
-    }
-    axios.get((env == 'dev' ? 'https://apitest.upsurge.finance/invest/v1/profile/ids/' : 'https://api.upsurge.finance/invest/v1/profile/ids/') + account.address)
-      .then(response => {
-        console.log('getMyInvestings', response)
-        if (response.data.code == 200) {
-          setMyInvestings(response.data.data.investing)
+  const { data: hash, writeContractAsync } = useWriteContract();
+  // 使用 useWaitForTransaction 监听授权和投资交易状态
+  const { isSuccess, isError } = useWaitForTransactionReceipt({
+    hash,
+  });
+
+  useEffect(() => {
+    const fetchMyInvestments = async () => {
+      if (accountAddress) {
+        try {
+          const investingData = await fetchInvestments(accountAddress);
+          setMyInvestings(investingData);
+        } catch (error) {
+          console.error(error);
         }
-      })
-      .catch(error => console.error(error))
-  }
-
-  function getPoolInfo() {
-    return readContract(config, {
-      abi: USDTVAULT_ERC20.abi,
-      address: contractAddress,
-      functionName: "pools",
-      args: [pid],
-    });
-  }
-
-  function getPoolState() {
-    return readContract(config, {
-      abi: USDTVAULT_ERC20.abi,
-      address: contractAddress,
-      functionName: "poolState",
-      args: [pid],
-    });
-  }
-
-  function queryBalance() {
-    const account = getAccount(config);
-    // console.log("account", account);
-    return readContract(config, {
-      abi: USDT_ERC20.abi,
-      address: USDT_ERC20.address,
-      functionName: "balanceOf",
-      args: [account.address],
-    });
-  }
-
-  function getAllowance() {
-    const account = getAccount(config);
-    return readContract(config, {
-      abi: USDT_ERC20.abi,
-      address: USDT_ERC20.address,
-      functionName: "allowance",
-      args: [account.address, contractAddress],
-    });
-  }
-
-  function investing(amount) {
-    const account = getAccount(config);
-    return writeContract(config, {
-      abi: USDTVAULT_ERC20.abi,
-      address: contractAddress,
-      functionName: "invest",
-      args: [pid, amount],
-      account: account.address,
-    });
-  }
-
-  function approving(amount) {
-    const account = getAccount(config);
-    return writeContract(config, {
-      abi: USDT_ERC20.abi,
-      address: USDT_ERC20.address,
-      functionName: "approve",
-      args: [contractAddress, amount],
-      account: account.address,
-    });
-  }
-  async function success(hash) {
-    var retry = 5;
-    while (retry > 0) {
-      try {
-        const res = await getTransactionReceipt(config, {
-          hash
-        });
-        console.log("getTransactionReceipt", res);
-        if (res) {
-          return res.status == "success";
-        }
-        retry--;
-      } catch (e) {
-        console.error(e, config);
-        await new Promise((resolve, reject) => {
-          setTimeout(() => {
-            resolve();
-          }, 1000);
-        });
       }
-    }
-  }
+    };
 
-  async function handleInvest() {
-    if (busy) {
+    fetchMyInvestments();
+  }, [accountAddress]);
+
+  const { data } = useReadContracts({
+    contracts: [
+      // 读取合约数据：获取池信息
+      {
+        address: contractAddress,
+        abi: USDT_VAULT_ERC20.abi,
+        functionName: "pools",
+        args: [pid],
+      },
+      // 读取合约数据：获取池状态
+      {
+        address: contractAddress,
+        abi: USDT_VAULT_ERC20.abi,
+        functionName: "poolState",
+        args: [pid],
+      },
+      // 查询用户余额
+      {
+        address: USDT_ERC20.address as `0x${string}`,
+        abi: USDT_ERC20.abi,
+        functionName: "balanceOf",
+        args: [accountAddress as `0x${string}`],
+      },
+      // 查询授权额度
+      {
+        address: USDT_ERC20.address as `0x${string}`,
+        abi: USDT_ERC20.abi,
+        functionName: "allowance",
+        args: [accountAddress as `0x${string}`, contractAddress],
+      },
+    ],
+  });
+
+  const handleInvest = useCallback(async () => {
+    if (busy || loading) return;
+
+    if (!isConnected) {
+      message.error("Please connect wallet first!");
       return;
     }
-    console.log("handle invest");
-    const account = await getAccount(config);
-    // console.log('account', account);
-    if (!account.address) {
-      console.warn("Please connect wallet first");
-      toast.error('Please connect wallet first!')
-      return;
-    }
-    
+
     setBusy(true);
     try {
-      const poolState = await getPoolState();
-      console.log("pool state", poolState);
-      if (poolState > 1) {
-        console.log("Product has been ended");
-        //toast todo
-        toast.error("Product has been ended")
+      const [poolInfo, poolState, balance, allowance] =
+        data?.map((item) => BigInt(item?.result as string)) || [];
+
+      if (poolState && poolState > 1) {
+        message.error("Product has been ended");
         return;
       }
+
       if (inputAmount <= 0) {
-        console.warn("Asset must bigger than zero");
-        toast.error("Asset must bigger than zero")
-        setBusy(false);
+        message.error("Asset must be greater than zero");
         return;
       }
-      if (fixedDuration == 1) {
-        const investings = myInvestings.filter(item => item.pid == pid && item.address == contractAddress)
-        if (investings.length) {
-          toast.error('Purchase only once')
-          return
+
+      if (fixedDuration === 1) {
+        const existingInvestments = myInvestings.filter(
+          (item) => item?.pid === pid && item?.address === contractAddress
+        );
+
+        if (existingInvestments.length > 0) {
+          message.error("Purchase only once");
+          return;
         }
       }
+
       const amount = BigInt(inputAmount * Math.pow(10, USDT_ERC20.decimals));
-      const limit = BigInt(depositLimit)
-      if (amount < limit) {
-        toast.error('Assets must bigger than ' + limit / BigInt(Math.pow(10, USDT_ERC20.decimals)) + ' USDT')
-        return
-      }
-      const balance = await queryBalance();
-      console.log("balance", balance);
-      if (amount > balance) {
-        console.warn("Insufficient balance");
-        //$toast('Insufficient balance')
-        toast.error("Insufficient balance")
-        setBusy(false);
+
+      if (amount < BigInt(depositLimit)) {
+        message.error(
+          `Assets must be greater than ${Number(depositLimit) / 10 ** USDT_ERC20.decimals
+          } USDT`
+        );
         return;
       }
-      const allowance = await getAllowance();
-      console.log("allowance", allowance);
-      if (allowance < amount) {
-        setState(1);
-        var hash = await approving(amount);
-        console.log('approving resolved.hash is ', hash)
-        if (await success(hash)) {
-          setState(2);
-          hash = await investing(amount);
-          console.log('investing resolved.hash is ', hash)
-          if (await success(hash)) {
-            console.log("Invest succeed");
-            toast.success("Invest succeed")
-            purchaseDefi({
-              signedTx: hash
-            })
-          } else {
-            console.warn("Invest failed");
-            toast.error("Invest failed")
-          }
-          setState(0);
-        }
-      } else {
-        setState(2);
-        const hash = await investing(amount);
-        if (await success(hash)) {
-          console.log("Invest succeed");
-          toast.success("Invest succeed")
-          purchaseDefi({
-            signedTx: hash
-          })
-        } else {
-          console.warn("Invest failed");
-          toast.error("Invest failed")
-        }
+
+      if (balance && amount > balance) {
+        message.error("Insufficient balance");
+        return;
       }
-    } catch (e) {
-      console.error(e);
-      toast.error(getContractMsg(e.message, 'Invest'))
+
+      if (allowance && amount > allowance) {
+        setState(1); // 状态设置为审批中
+
+        // 写入合约数据：授权
+        const approveTx = await writeContractAsync({
+          address: USDT_ERC20.address as `0x${string}`,
+          abi: USDT_ERC20.abi,
+          functionName: "approve",
+          args: [contractAddress, amount],
+        });
+
+        if (isSuccess)
+          message.success(`Approval successful, hash: ${approveTx}`);
+
+        if (isError) throw new Error("Approval failed");
+      }
+
+      setState(2);
+      // 写入合约数据：投资
+      const investTx = await writeContractAsync({
+        address: contractAddress as `0x${string}`,
+        abi: USDT_VAULT_ERC20.abi,
+        functionName: "invest",
+        args: [pid, amount],
+      });
+
+      if (isSuccess)
+        message.success(`Investment successful, hash: ${investTx}`);
+
+      if (isError) throw new Error("Investment failed");
+
+      await purchaseDefi({
+        signedTx: investTx,
+        id: abbrId,
+        amount: inputAmount.toString(),
+      });
+    } catch (error: any) {
+      console.error(error);
+      message.error(getContractMsg(error?.message, "Invest"));
     } finally {
       setBusy(false);
       setState(0);
     }
-  }
-
-  const getUserInfo = (address) => {
-    return client.query({
-      query: gql`
-      query {
-        getUser(input: { 
-          address: "${address}" 
-        }) {
-          user {
-            id
-            address
-            hashKey
-            points
-            inviteCode
-            createdAt
-            updatedAt
-            deletedAt
-          }
-        }
-      }
-      `
-    })
-  }
-
-  const purchaseDefi = async (parms: any) => {
-    try {
-      const account = getAccount(config)
-      const userRes = await getUserInfo(account.address)
-      console.log('userInfo', userRes)
-      const chainId = getChainId(config)
-      await client.mutate({
-        mutation: gql`
-          mutation {
-            purchaseDefi(input: { 
-              id: "${abbrId || ''}"
-              userId: "${userRes.data.getUser.user.id || ''}"
-              signedTx: "${parms.signedTx}"
-              userAddr: "${account.address}"
-              chainCode: "${chainId}"
-              amount: "${inputAmount}"
-            }) {
-              success
-              id
-              amount
-            }
-        }
-        `
-      })
-      console.log('purchaseDefi success')
-    } catch (error) {
-      console.error(error)
-    }
-  };
-
-  const [blockNumber, setblockNumber] = useState(0);
-	 getBlockNumber(config).then(res=>setblockNumber(res))
+  }, [
+    abbrId,
+    busy,
+    contractAddress,
+    data,
+    depositLimit,
+    fixedDuration,
+    inputAmount,
+    isConnected,
+    isError,
+    isSuccess,
+    loading,
+    myInvestings,
+    pid,
+    purchaseDefi,
+    writeContractAsync,
+  ]);
 
   return (
-    <div className="w-[500px] h-[473px]">
-      <div className="w-full h-[90px] px-4 flex justify-between items-center mb-[5px] bg-market-card-bg rounded-card shadow-card text-primary">
+    <div className="w-full max-w-[500px] h-auto p-4 bg-white shadow-lg rounded-lg transition-all duration-300">
+      <div className="w-full h-auto text-[8px] sm:h-[90px] p-4 flex flex-row flex-wrap justify-between items-center mb-[5px] text-primary bg-market-card-bg shadow-card">
         {/* 第一个部分 */}
-        <div className="flex items-center">
-          <div className="relative mr-2">
+        <div className="flex items-center w-full sm:w-auto overflow-hidden">
+          <div className="relative mr-2 flex-shrink-0">
             <Image
               src={matchImg(logo)}
               alt={coinName}
               width={40}
               height={40}
-              className="rounded-coin"
+              className="rounded-coin w-[40px] h-[40px]"
             />
-            <Image
-              src={subLogo}
-              alt={coinName}
-              width={20}
-              height={20}
-              className="absolute bottom-0 right-normal"
-            />
+            {/*<Image*/}
+            {/*  src={subLogo}*/}
+            {/*  alt={coinName}*/}
+            {/*  width={20}*/}
+            {/*  height={20}*/}
+            {/*  className="absolute bottom-0 right-0"*/}
+            {/*/>*/}
           </div>
-          <div className="ml-4 flex items-center gap-2">
-            <h3 className="text-coinXl">{((Number(apy))/1000000)*100}</h3>
-            <div>
-              <p>%</p>
-              <p className="text-primary text-coinSm">APY</p>
+          <div className="ml-4 flex items-center gap-2 overflow-hidden">
+            <h3 className="text-lg sm:text-coinXl truncate">{formattedApy}</h3>
+            <div className="flex flex-col truncate">
+              <p className="text-sm sm:text-lg font-bold truncate">%</p>
+              <p className="text-primary text-xs sm:text-coinSm truncate">APY</p>
             </div>
           </div>
         </div>
 
-        <div className="h-[40px] w-[1px] bg-[#ededed]"></div>
-
-        <div className="ml-4 flex flex-col items-center gap-1">
-          <p className="text-[22px] text-primary">{tvl}</p>
-          <p className="text-[12px] text-secondary">TVL</p>
-        </div>
-
-        <div className="h-[40px] w-[1px] bg-[#ededed]"></div>
-
-        <div className="ml-4 flex flex-col items-center gap-2">
-          <div className="flex items-center gap-[2px]">
-            <Image src={"/eth.svg"} width={16} height={16} alt="eth" />
-            <p className="text-primary text-desc font-500">{network}</p>
+        {/* 第二部分: TVL 和 Network */}
+        <div className="flex items-center justify-between w-full sm:w-auto gap-4 mt-2 sm:mt-0">
+          <div className="flex flex-col items-center gap-1">
+            <p className="text-[16px] sm:text-[22px] text-primary truncate">{tvl}</p>
+            <p className="text-[10px] sm:text-[12px] text-secondary">TVL</p>
           </div>
-          {/* <p className="text-desc text-secondary" v-if={fixedDuration == 0}>Date: {handleShowDay(startBlock,blockNumber,cycle)}</p> */}
-          <p className="text-desc text-secondary">Date: {moment(maturity).format('ll') }</p>
+
+          {/* 中间的分隔线 */}
+          <div className="h-[40px] w-[1px] bg-[#ededed] hidden sm:block"></div>
+
+          {/* 第三部分: Network */}
+          <div className="ml-4 flex flex-col items-center gap-2">
+            <div className="flex items-center gap-[2px]">
+              <Image src={"/bsc.svg"} width={16} height={16} alt="bsc" />
+              <p className="text-primary text-xs sm:text-desc font-500 truncate">{network}</p>
+            </div>
+
+            <p className="text-[10px] sm:text-desc text-secondary truncate">
+
+              {fixedDuration === 0
+                ? handleShowDay(startBlock, Number(blockNumber), cycle)
+                : moment(maturity).format("ll")}
+            </p>
+          </div>
         </div>
       </div>
+
       <InputCard
         logo={matchImg(logo)}
         coinName={coinName}
         rate={rate || 1}
         network={network}
-        apy={apy}
+        apy={Number(apy)}
         cycle={cycle}
         maturity={maturity}
         fixedDuration={fixedDuration}
         onChange={(value) => setInputAmount(value)}
       />
-      <div onClick={handleInvest} className="w-full h-[60px] flex items-center justify-center bg-primary text-thirdary text-[16px] font-600 rounded-[20px] button-hover">
-        {state == 0 ? 'Invest' : state == 1 ? (<Loading text='Approving' type="asset" />) : (<Loading text='Investing' type="asset" />)}
+
+      <div
+        onClick={handleInvest}
+        className="w-full h-[40px] sm:h-[60px] flex items-center justify-center bg-primary text-thirdary text-[14px] sm:text-[16px] font-600 rounded-[10px] sm:rounded-[20px] button-hover mt-4 sm:mt-0"
+      >
+        {state === 0 ? (
+          "Invest"
+        ) : state === 1 ? (
+          <Loading text="Approving" type="asset" />
+        ) : (
+          <Loading text="Investing" type="asset" />
+        )}
       </div>
     </div>
   );

@@ -1,5 +1,3 @@
-/* eslint-disable react-hooks/exhaustive-deps */
-/* eslint-disable react-hooks/rules-of-hooks */
 import type { NextPage } from "next";
 import Head from "next/head";
 import { Header } from "@/components/Header";
@@ -8,53 +6,34 @@ import Earn from "@/components/Earn";
 import { Footer } from "@/components/Footer";
 import CardSection from "@/Section/CardSection";
 import { useTranslation } from "react-i18next";
+import useStore from "@/store/useStore";
+import { useRouter } from "next/router";
 import { useEffect } from "react";
-import { useRouter } from 'next/router';
-import useStore from '@/store/index';
-import axios from 'axios'
-import env from '@/commons/env'
-const Home: NextPage = () => {
-  const { productArray,updateProductArray } = useStore();
-  function getProductListApi() {
-    try {
-      axios.get(env == 'dev' ? 'https://apitest.upsurge.finance/poolInfo/v1/avaliable' : 'https://api.upsurge.finance/poolInfo/v1/avaliable')
-      .then(response=>{
-        if(response.data.code == 200){
-          let arr = response.data.data || []
-          arr.map(item=>{
-            item.abbrLogo= "USDT",
-            item.abbrSubLogo= "/aave.png",
-            item.abbrTitle = "USDT",
-            item.abbrVersion= "SHAMBHALA",
-            item.abbrExpireTime = item.maturity,
-            item.maturity = item.maturity,
-            item.abbrApy = item.apy,
-            item.abbrCycle = item.cycle,
-            item.network = "Ethereum",
-            item.tvl = "",
-            item.contractAddress = item.address
-          })
-          updateProductArray(arr)
-        }
-      })
-      .catch(error=>console.error(error))
-    } catch (error) {
-      console.error("Error fetching table data:", error);
-      return [];
-    }
-  }
+import { getProductListApi } from "@/services/productService";
 
+const Home: NextPage = () => {
+  const { t } = useTranslation("common");
+  const { updateProductArray } = useStore();
   const router = useRouter();
   const { inviteCode } = router.query;
-    useEffect(()=>{
-      if(inviteCode){
-        localStorage.setItem('inviteCode', inviteCode)
-      }else{
-        localStorage.removeItem('inviteCode')
-      }
-      getProductListApi()
-    },[])
-  const { t } = useTranslation("common");
+
+  useEffect(() => {
+    const fetchProductList = async () => {
+      const products = await getProductListApi();
+      updateProductArray(products);
+    };
+
+    fetchProductList();
+  }, [updateProductArray]);
+
+  useEffect(() => {
+    if (inviteCode) {
+      localStorage.setItem("inviteCode", inviteCode as string);
+    } else {
+      localStorage.removeItem("inviteCode");
+    }
+  }, [inviteCode]);
+
   return (
     <div>
       <Head>
