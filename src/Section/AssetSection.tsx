@@ -12,6 +12,9 @@ import {
   useWaitForTransactionReceipt,
   useAccount,
 } from "wagmi";
+import _ from "lodash";
+
+import { useConnectModal } from "@rainbow-me/rainbowkit";
 import { ContractConfig } from "@/contract/config";
 import { getContractMsg } from "@/utils/contract";
 
@@ -58,6 +61,7 @@ const AssetSection = () => {
   const [inputValue, setInputValue] = useState<number>(0.0);
   const [step, setStep] = useState<number>(0);
   const { address: accountAddress, isConnected } = useAccount();
+  const { openConnectModal } = useConnectModal();
   const rate = 1;
   const [busy, setBusy] = useState(false);
   const router = useRouter();
@@ -79,7 +83,7 @@ const AssetSection = () => {
   const [dailyEarn, setDailyEarn] = useState<string>("0");
   const [totalEarn, setTotalEarn] = useState<string>("0");
 
-  const { beforeStakeHandleBsc } = useApproveStake();
+  const { beforeStakeHandleBsc, isApproving } = useApproveStake();
   const { handleStake } = useStake();
 
   // 确保 abbrExpireTime 存在且是有效的字符串
@@ -269,9 +273,9 @@ const AssetSection = () => {
     return { decimals, symbol };
   };
 
-  async function handleInvest() {
+  async function handleInvestDebounce() {
     if (!isConnected) {
-      message.error("Please connect wallet first!");
+      openConnectModal?.();
       return;
     }
 
@@ -283,8 +287,14 @@ const AssetSection = () => {
     const inputAmountNumber = toSmallestUnit(inputValue, BSC_USDT.decimals);
     // const amount = BigInt(inputAmountNumber);
     // const depositLimitNumber = numeral(depositLimit).value() || 0;
-    await beforeStakeHandleBsc(inputAmountNumber);
+    const approveTx = await beforeStakeHandleBsc(inputAmountNumber);
+
+    if (!approveTx) {
+      message.error("Approval failed");
+      return;
+    }
     await handleStake(inputAmountNumber);
+
     return;
 
     if (!isConnected) {
@@ -379,6 +389,8 @@ const AssetSection = () => {
       setStep(0);
     }
   }
+
+  const handleInvest = _.debounce(handleInvestDebounce);
 
   async function handleRedeem() {
     if (busy) return;
@@ -671,8 +683,12 @@ const AssetSection = () => {
               {/* 操作按钮 */}
               {selectedRedeem == "invite" ? (
                 <div
-                  onClick={() => handleInvest()}
+                  onClick={isApproving ? () => {} : handleInvest}
                   className="w-full h-[48px] flex items-center justify-center bg-primary text-thirdary text-[14px] font-600 rounded-[10px] button-hover capitalize"
+                  style={{
+                    cursor: isApproving ? "not-allowed" : "pointer",
+                    backgroundColor: isApproving ? "#d3d3d3" : "",
+                  }}
                 >
                   {step == 0 ? (
                     "Invest"
@@ -789,8 +805,12 @@ const AssetSection = () => {
 
           {selectedRedeem == "invite" ? (
             <div
-              onClick={() => handleInvest()}
+              onClick={isApproving ? () => {} : handleInvest}
               className="w-full h-[48px] sm:h-[60px] flex items-center justify-center bg-primary text-thirdary text-[14px] sm:text-[16px] font-600 rounded-[10px] sm:rounded-[20px] button-hover capitalize"
+              style={{
+                cursor: isApproving ? "not-allowed" : "pointer",
+                backgroundColor: isApproving ? "#d3d3d3" : "",
+              }}
             >
               {step == 0 ? (
                 "Invest"
